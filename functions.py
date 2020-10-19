@@ -1,5 +1,6 @@
 import numpy as np
 import cv2
+import math
 
 ##########################################################################
 ############################## common ####################################
@@ -12,11 +13,41 @@ def frobenius_norm(I):
 def normalize(v):
     return v / np.sqrt(np.sum(v ** 2))
 
-# TODO: This one... they don't describe how they do it in the paper
+# TODO: This one
 def calc_global_rain_direction(I):
     global global_rain_direction
     global_rain_direction = [1, 1]
 
+# Convert the image into the range of [0.0, 1.0]
+def img_normalize(img):
+    min_val = np.min(img.ravel())
+    max_val = np.max(img.ravel())
+    output = (img.astype('float')-min_val)/(max_val - min_val)
+    return output
+
+# Gets x and y derivative images
+def partial_both_grayscale(img):
+    n_row = img.shape[0]
+    n_col = img.shape[1]
+    gx = np.zeros((n_row-2, n_col-2), float)
+    gy = np.zeros((n_row-2, n_col-2), float)
+    for i in range(1, n_row-2):
+        for j in range(1, n_col-2):
+            gx[i-1, j-1] = (img[i, j+1]-img[i, j-1])/2.0
+            gy[i-1, j-1] = (img[i+1, j]-img[i-1, j])/2.0
+    return gx, gy
+
+# Calculates the gradient angle at each pixel given both derivatives
+def grad_angle(gx, gy):
+    n_row = gx.shape[0]
+    n_col = gx.shape[1]
+    angles = np.zeros((n_row, n_col), float)
+    for i in range(1, n_row):
+        for j in range(1, n_col):
+            y = gy[i-1, j-1]
+            x = gx[i-1, j-1]
+            angles[i-1, j-1] = math.atan2(y, x)
+    return angles
 
 # Partial derivative of R in x direction
 def partial_x(R):
@@ -53,7 +84,8 @@ def pixel_gradient(I, x, y):
 
 # psi = sparsity prior
 # This effectively removes rain streaks, but background details as well
-gamma = 1  # some weight
+gamma = 5  # some weight
+M = 20
 
 def regularize_psi(B):
     alphavector = normalize(alpha(B))
@@ -131,7 +163,7 @@ def theta_i(B, x, y):
 # omega = rain layer prior
 # push scene details from R back into B
 
-eta = 1 # sensitivity parameter
+eta = 1.2 # sensitivity parameter
 
 def regularize_omega(R):
     rows = R.shape[0]
