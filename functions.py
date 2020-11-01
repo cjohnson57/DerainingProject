@@ -5,18 +5,18 @@ import math
 ##########################################################################
 ############################## common ####################################
 
-global_rain_direction = [0, 0]
+# Global vars for use in this file
+global_rain_direction = 0
+rainy_patches = list()
+patchwidth = 0
 
+# Returns frobenius norm of an image
 def frobenius_norm(I):
     return np.linalg.norm(I, ord=None, axis=None, keepdims=False)
 
+# Normalize vector
 def normalize(v):
     return v / np.sqrt(np.sum(v ** 2))
-
-# TODO: This one
-def calc_global_rain_direction(I):
-    global global_rain_direction
-    global_rain_direction = [1, 1]
 
 # Convert the image into the range of [0.0, 1.0]
 def img_normalize(img):
@@ -33,8 +33,8 @@ def partial_both_grayscale(img):
     gy = np.zeros((n_row-2, n_col-2), float)
     for i in range(1, n_row-2):
         for j in range(1, n_col-2):
-            gx[i-1, j-1] = (img[i, j+1]-img[i, j-1])/2.0
-            gy[i-1, j-1] = (img[i+1, j]-img[i-1, j])/2.0
+            gx[i-1, j-1] = (img[i, j+1]-img[i, j-1])
+            gy[i-1, j-1] = (img[i+1, j]-img[i-1, j])
     return gx, gy
 
 # Calculates the gradient angle at each pixel given both derivatives
@@ -59,7 +59,6 @@ def partial_x(R):
             gx[i - 1, j - 1] = (R[i, j + 1] - R[i, j - 1]) / 2.0
     return gx
 
-
 # Partial derivative of R in y direction
 def partial_y(R):
     rows = R.shape[0]
@@ -70,7 +69,7 @@ def partial_y(R):
             gy[i - 1, j - 1] = (R[i + 1, j] - R[i - 1, j]) / 2.0
     return gy
 
-
+# Returns the gradient at a specific pixel
 def pixel_gradient(I, x, y):
     vector = []
     partx = (I[x, y + 1] - I[x, y - 1]) / 2.0
@@ -78,6 +77,21 @@ def pixel_gradient(I, x, y):
     vector.append((partx[0] + partx[1] + partx[2]) / 3)
     vector.append((party[0] + party[1] + party[2]) / 3)
     return [vector[0], vector[1]]
+
+# Return starting x and y value of patch centered at pixel value
+def get_patch(pixel):
+    startx = int(max(0, pixel[0] - patchwidth/2))
+    starty = int(max(0, pixel[1] - patchwidth/2))
+    return (startx, starty)
+
+# Based on starting pixels of two patches, slices the image and returns the difference of the two
+def patch_difference(I, patch1, patch2):
+    patch1_img = I[patch1[1]:patch1[1] + patchwidth, patch1[0]:patch1[0] + patchwidth]
+    patch2_img = I[patch2[1]:patch2[1] + patchwidth, patch2[0]:patch2[0] + patchwidth]
+    return patch1_img - patch2_img
+
+
+### All of the following functions are attempts to recreate the functions defined in the paper
 
 ##########################################################################
 ############################### psi ######################################
@@ -134,7 +148,7 @@ def tau_i_m(B, pixel, m):
 ############################### phi ######################################
 
 # phi = Rain direction prior
-# helps put back in background details that could be mistaken for streaks
+# Helps put back in background details that could be mistaken for streaks
 
 epsilon_1 = 0.0001 # Constant to avoid division by 0
 
@@ -161,37 +175,46 @@ def theta_i(B, x, y):
 ############################## omega #####################################
 
 # omega = rain layer prior
-# push scene details from R back into B
+# Push scene details from R back into B
 
 eta = 1.2 # sensitivity parameter
 
 def regularize_omega(R):
     rows = R.shape[0]
     cols = R.shape[1]
+    # Calculate derivative of R
+    R_gray = cv2.cvtColor(R, cv2.COLOR_BGR2GRAY)
+    R_gray_norm = img_normalize(R_gray)
+    dx, dy = partial_both_grayscale(R_gray_norm)
     # loop through each pixel and add to sum
     sum = 0
-    for i in range(rows - 1):
-        for j in range(cols - 1):
-            pixel = R[i, j]
-            term1 = weight_x(R, pixel) * (partial_x(R) * pixel) ** 2
-            term2 = weight_y(R, pixel) * (partial_y(R) * pixel) ** 2
+    for i in range(rows - 2):
+        for j in range(cols - 2):
+            pixel = (i, j)
+            dx_pixel = dx[pixel]
+            dy_pixel = dy[pixel]
+            term1 = weight_x(R, pixel, dx_pixel) * (dx_pixel ** 2)
+            term2 = weight_y(R, pixel, dy_pixel) * (dy_pixel ** 2)
             sum += (term1 + term2)
     return sum
 
 # Smoothing weight on pixel i in x direction
-def weight_x(R, pixel):
-    term = partial_x(R) * gamma_i(R, pixel)
+def weight_x(R, pixel, partial):
+    term = partial * gamma_i(R, pixel)
     return abs(term) ** eta
 
 # Smoothing weight on pixel i in y direction
-def weight_y(R, pixel):
-    term = partial_y(R) * gamma_i(R, pixel)
+def weight_y(R, pixel, partial):
+    term = partial * gamma_i(R, pixel)
     return abs(term) ** eta
 
-# TODO: This one
 # Similarity map
 def gamma_i(R, pixel):
-    vector = []
-    # go through each extracted rain patch and do something, return min
+    vector = list()
+    patch = get_patch(pixel)
+    # Go through each rain patch and compare similarity, return min of norm of similarities
+    for rainy_patch in rainy_patches:
+        difference = patch_difference(R, patch, rainy_patch)
+        vector.append(frobenius_norm(difference))
     return min(vector)
 
