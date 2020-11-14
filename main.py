@@ -109,11 +109,11 @@ for i in range(0, N):
 
 # Test to see canny edge detector results
 # canny = cv2.Canny(I, 0, 100)
-# canny_gray = cv2.Canny(I_gray, 0, 100)
+canny_gray = cv2.Canny(I_gray, 0, 100)
 # cv2.imshow('Image Edges', canny)
-# cv2.imshow('Gray Image Edges', canny_gray)
-# cv2.waitKey(0)
-# cv2.destroyAllWindows()
+cv2.imshow('Gray Image Edges', canny_gray)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
 
 # Now the goal is to find the longest rain streak (edge) in each window and take their slope
 # The median of the list of slopes is the global rain direction
@@ -208,5 +208,23 @@ f.patchwidth = patchwidth
 term0 = f.frobenius_norm(I - B - R) ** 2
 term1 = lambda_1 * f.regularize_psi(B) # Need to add code for calculation of sparse code in each patch
 term2 = lambda_2 * f.regularize_phi(B)
-term3 = lambda_3 * f.regularize_omega(R)
+term3 = lambda_3 * f.regularize_omega(R, I)
 term = term0 + term1 + term2 + term3
+
+beta = .1 # ?
+alpha = f.alpha(B)
+H = B  # Supposed to be lagrange multiplier of linear constraint
+
+for t in range(0, 100):
+    # Update B step 1: update B_t+1
+    firstpart = f.frobenius_norm(I - B - R)
+    secondpart = lambda_2 * f.regularize_phi(B)
+    D = f.regularize_omega(R, I)
+    thirdpart = f.frobenius_norm(B - D * alpha - (1 / beta) * H)
+    B = firstpart + secondpart + (beta / 2) * thirdpart
+    # Update B step 2: update alpha_t+1
+    alpha = f.frobenius_norm(B - D * alpha - (1 / beta) * H) + lambda_1 * f.regularize_psi(B)
+    # Update B step 3: Update H_t+1
+    H = H + beta * (B - D * alpha)
+    # Update R
+    R = I - B

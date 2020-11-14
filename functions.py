@@ -179,7 +179,7 @@ def theta_i(B, x, y):
 
 eta = 1.2 # sensitivity parameter
 
-def regularize_omega(R):
+def regularize_omega(R, I):
     rows = R.shape[0]
     cols = R.shape[1]
     # Calculate derivative of R
@@ -193,28 +193,28 @@ def regularize_omega(R):
             pixel = (i, j)
             dx_pixel = dx[pixel]
             dy_pixel = dy[pixel]
-            term1 = weight_x(R, pixel, dx_pixel) * (dx_pixel ** 2)
-            term2 = weight_y(R, pixel, dy_pixel) * (dy_pixel ** 2)
+            term1 = weight_x(I, pixel, dx_pixel) * (dx_pixel ** 2)
+            term2 = weight_y(I, pixel, dy_pixel) * (dy_pixel ** 2)
             sum += (term1 + term2)
     return sum
 
 # Smoothing weight on pixel i in x direction
-def weight_x(R, pixel, partial):
-    term = partial * gamma_i(R, pixel)
+def weight_x(I, pixel, partial):
+    term = partial * gamma_i(I, pixel)
     return abs(term) ** eta
 
 # Smoothing weight on pixel i in y direction
-def weight_y(R, pixel, partial):
-    term = partial * gamma_i(R, pixel)
+def weight_y(I, pixel, partial):
+    term = partial * gamma_i(I, pixel)
     return abs(term) ** eta
 
 # Similarity map
-def gamma_i(R, pixel):
+def gamma_i(I, pixel):
     vector = list()
     patch = get_patch(pixel)
     # Go through each rain patch and compare similarity, return min of norm of similarities
     for rainy_patch in rainy_patches:
-        difference = patch_difference(R, patch, rainy_patch)
+        difference = patch_difference(I, patch, rainy_patch)
         vector.append(frobenius_norm(difference))
     return min(vector)
 
