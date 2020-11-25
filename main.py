@@ -21,7 +21,7 @@ K = 25 # Tuned parameter in range [4, 50]
 
 # Read in image, compute gradients, gradient angle, attempt to extract rainy patches from gradient angle
 
-I = cv2.imread('TestUmbrella.png')
+I = cv2.imread('TestTree.png')
 
 I_gray = cv2.cvtColor(I, cv2.COLOR_BGR2GRAY)
 
@@ -48,6 +48,14 @@ gradient_angles = f.grad_angle(gx, gy) # Currently the result is in range 0 to p
 # cv2.waitKey(0)
 # cv2.destroyAllWindows()
 
+# Test to see canny edge detector results
+# canny = cv2.Canny(I, 0, 100)
+canny_gray = cv2.Canny(I_gray, 0, 80)
+# cv2.imshow('Image Edges', canny)
+cv2.imshow('Gray Image Edges', canny_gray)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
+
 # Construct array of windows which each have some value delta
 
 n_row = gradient_angles.shape[0]
@@ -58,37 +66,27 @@ windows = list()
 # Deltas is a parallel list of delta values
 deltas = list()
 
-# This loop implements a sliding window size W_r x W_r and with stride W_s
-# For each window a histogram with 10 bins of gradient angles is calculated
-# Delta for each window will equal the bin with the most elements and its two adjacent bins
-# After delta is calculated for each window, the N windows with the highest delta are selected as rainy window
+
+# Use our own method where we find hough lines in a window with at least 7 lines
+# Check each of their angles and save delta as the standard deviation of the angles
+# This will make it so that windows with several lines going in the same direction will be considered
 y = 0
 x = 0
 while True:
-    # Construct a histogram of angle values for each window
-    histogram = np.zeros(10, int)
     # Window size is W_r x W_r
     # x and y indicate the top-left corner of the window
-    for ix in range(x, x+W_r):
-        for iy in range(y, y+W_r):
-            angle = gradient_angles[ix, iy]
-            for anglebin in range(1, 11):
-                # This looks complicated but just checks which range the angle resides in
-                # For example, when bin = 1, it checks if angle is in range [0, pi/10)
-                # When bin = 2, it checks if angle is in range [pi/10, 2*pi/10), etc.
-                if (anglebin - 1) * math.pi / 10 <= angle < anglebin * math.pi / 10:
-                    histogram[anglebin-1] += 1
-                    break # Break after finding correct bin
-    # Now must calculate delta, which equals the number of values in the bin with the most values, and its two adjacent bins
-    maxindex = np.argmax(histogram)
-    delta = histogram[maxindex]
-    if maxindex > 0: # Consider previous adjacent bin unless this is the first bin
-        delta += histogram[maxindex - 1]
-    if maxindex < 9: # Consider next adjacent bin unless this is the last bin
-        delta += histogram[maxindex + 1]
+    cropped = canny_gray[y:y+W_r, x:x+W_r]
+    # Now use hough transform to identify lines (rain streaks) and try to find longest one
+    lines = cv2.HoughLines(cropped, 1, np.pi / 180, 20)
+    delta = 1000000.0
+    if not(lines is None) and lines.shape[0] > 8: # Want at least 7 lines to consider this window
+        angles = list()
+        for line in lines:
+            angles.append(line[0][1])
+        delta = np.std(angles) # Find the standard deviation of the angles, low std dev means lines are going in the same direction
     window = (x, y)
     windows.append(window) # Add to list of windows
-    deltas.append(delta) #Add to list of deltas
+    deltas.append(delta) # Add to list of deltas
     # Now must determine how to increment x and y values
     if x + W_s + W_r > n_row - 1 and y + W_s + W_r > n_col - 1: # If next window is outside image in both dimensions, end has been reached
         break
@@ -98,39 +96,28 @@ while True:
     else: # Otherwise just increment x direction
         x += W_s
 
-# Now we want to find the index of the max deltas, and get the windows with the same index
+# Now we want to find the index of the minimum deltas, and get the windows with the same index
 # These will be considered the rainy windows
 rainywindows = list()
 for i in range(0, N):
-    # Get the max N delta values, append them to rainy windows, and remove those values from both lists
-    maxindex = np.argmax(deltas)
-    rainywindows.append(windows.pop(maxindex))
-    deltas.pop(maxindex)
-
-# Test to see canny edge detector results
-# canny = cv2.Canny(I, 0, 100)
-canny_gray = cv2.Canny(I_gray, 0, 100)
-# cv2.imshow('Image Edges', canny)
-cv2.imshow('Gray Image Edges', canny_gray)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+    # Get the min N delta values, append them to rainy windows, and remove those values from both lists
+    minindex = np.argmin(deltas)
+    rainywindows.append(windows.pop(minindex))
+    deltas.pop(minindex)
 
 # Now the goal is to find the longest rain streak (edge) in each window and take their slope
 # The median of the list of slopes is the global rain direction
 I_windows = I.copy()
 rainslopes = list()
+majority = 0
 for window in rainywindows:
     # Perform canny edge detection on each window to hopefully get edges for rain streaks
-    cropped = I[window[1]:window[1]+W_r, window[0]:window[0]+W_r]
-    cropped_canny = cv2.Canny(cropped, 0, 100) # Experimentally, this threshold seems to be the best at showing the rain streaks as edges
-
+    cropped = canny_gray[window[1]:window[1]+W_r, window[0]:window[0]+W_r]
     # cv2.imshow('Rainy Window', cropped)
-    # cv2.imshow('Rainy Window Edges', cropped_canny)
     # cv2.waitKey(0)
     # cv2.destroyAllWindows()
-
     # Now use hough transform to identify lines (rain streaks) and try to find longest one
-    lines = cv2.HoughLines(cropped_canny, 1, np.pi / 180, 20)
+    lines = cv2.HoughLines(cropped, 1, np.pi / 180, 20)
     if not (lines is None): # Once window identification works, this should never be false
         lengths = list()
         for line in lines:
@@ -147,14 +134,26 @@ for window in rainywindows:
             lengths.append(length) # Add to length list
         maxindex = np.argmax(lengths) # Get maximum length
         maxline = lines[maxindex] # This is the line with maximum length
-        rainslopes.append(maxline[0][1]) # Add the theta of the maximum length line to the list of rain slopes
+        thetamax = maxline[0][1]
+        rhomax = maxline[0][0]
+        majorityadd = 1
+        if rhomax > 0: # If rho is positive, consider slope as negative
+            majorityadd = -1
+        rainslopes.append(thetamax) # Add the theta of the maximum length line to the list of rain slopes
+        majority += majorityadd
 
     # Draw rectangle over each window to identify them
     bottomright = (window[0] + W_r, window[1] + W_r)
     cv2.rectangle(I_windows, window, bottomright, (0, 0, 255), 2)
 
+
+# If some slopes are opposite direction from majority, are likely an error, want to ignore
+multiplier = 1
+if majority < 0:
+    multiplier = -1
+
 # Take median rain slope from the list of rain slopes of the longest line in each rainy window, this is the global rain direction
-global_rain_direction = np.median(rainslopes)
+global_rain_direction = np.max(rainslopes) * multiplier
 # print(global_rain_direction)
 # Draw line representing global rain direction on image
 if global_rain_direction > 0: # positive slope, draw from bottom left
