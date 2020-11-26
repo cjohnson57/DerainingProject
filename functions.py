@@ -6,7 +6,7 @@ import math
 ############################## common ####################################
 
 # Global vars for use in this file
-global_rain_direction = 0
+global_rain_direction = 0.0
 rainy_patches = list()
 patchwidth = 0
 
@@ -78,6 +78,10 @@ def pixel_gradient(I, x, y):
     vector.append((party[0] + party[1] + party[2]) / 3)
     return [vector[0], vector[1]]
 
+# Represents the global rain direction as a vector and returns
+def global_rain_vector():
+    return [1, global_rain_direction]
+
 # Return starting x and y value of patch centered at pixel value
 def get_patch(pixel):
     startx = int(max(0, pixel[0] - patchwidth/2))
@@ -87,7 +91,10 @@ def get_patch(pixel):
 # Based on starting pixels of two patches, slices the image and returns the difference of the two
 def patch_difference(I, patch1, patch2):
     patch1_img = I[patch1[1]:patch1[1] + patchwidth, patch1[0]:patch1[0] + patchwidth]
-    patch2_img = I[patch2[1]:patch2[1] + patchwidth, patch2[0]:patch2[0] + patchwidth]
+    # Account for when patch reached edge of image and must be truncated
+    adjustedwidth = patch1_img.shape[0]
+    adjustedheight = patch1_img.shape[1]
+    patch2_img = I[patch2[1]:patch2[1] + adjustedwidth, patch2[0]:patch2[0] + adjustedheight]
     return patch1_img - patch2_img
 
 
@@ -106,25 +113,25 @@ def regularize_psi(B):
     rows = B.shape[0]
     cols = B.shape[1]
     # loop through each pixel and add to sum
-    sum = 0
+    output = np.zeros((rows-1, cols-1), float)
     for i in range(rows - 1):
         for j in range(cols - 1):
             pixel = B[i, j]
-            sum += normalize(alpha_i(B, pixel) - mu_i(B, pixel))
+            output[i][j] = normalize(alphavector[pixel] - mu_i(B, pixel))
     return alphavector + gamma * sum
-
-## TODO: All of these
 
 # return vector of all alpha_i
 def alpha(B):
-    vector = []
     rows = B.shape[0]
     cols = B.shape[1]
+    output = np.zeros((rows-1, cols-1), float)
     for i in range(rows - 1):
         for j in range(cols - 1):
             pixel = B[i, j]
-            vector.append(alpha_i(B, pixel))
-    return vector
+            output = alpha_i(B, pixel)
+    return output
+
+## TODO: All of these
 
 # alpha_i = sparse code of patch centered at pixel i
 def alpha_i(B, pixel):
@@ -155,18 +162,18 @@ epsilon_1 = 0.0001 # Constant to avoid division by 0
 def regularize_phi(B):
     rows = B.shape[0]
     cols = B.shape[1]
-    # loop through each pixel and add to sum
-    sum = 0
+    # loop through each pixel and assign value to pixel in output
+    output = np.zeros((rows-1, cols-1), float)
     for i in range(rows - 1):
         for j in range(cols - 1):
             term = theta_i(B, i, j) + epsilon_1
-            sum += (1 / term)
-    return sum
+            output[i][j] = (1 / term)
+    return output
 
 # compares rain direction and pixel gradient
 def theta_i(B, x, y):
     gradient = pixel_gradient(B, x, y)
-    numerator = np.dot(global_rain_direction, gradient)
+    numerator = np.dot(global_rain_vector(), gradient)
     denominator = np.linalg.norm(gradient) + epsilon_1
     return abs(numerator) / denominator
 
@@ -187,25 +194,26 @@ def regularize_omega(R, I):
     R_gray_norm = img_normalize(R_gray)
     dx, dy = partial_both_grayscale(R_gray_norm)
     # loop through each pixel and add to sum
-    sum = 0
+    output = np.zeros((rows-1, cols-1), float)
     for i in range(rows - 2):
         for j in range(cols - 2):
             pixel = (i, j)
             dx_pixel = dx[pixel]
             dy_pixel = dy[pixel]
-            term1 = weight_x(I, pixel, dx_pixel) * (dx_pixel ** 2)
-            term2 = weight_y(I, pixel, dy_pixel) * (dy_pixel ** 2)
-            sum += (term1 + term2)
-    return sum
+            gamma = gamma_i(I, pixel)
+            term1 = weight_x(I, gamma, dx_pixel) * (dx_pixel ** 2)
+            term2 = weight_y(I, gamma, dy_pixel) * (dy_pixel ** 2)
+            output[i][j] = (term1 + term2)
+    return output
 
 # Smoothing weight on pixel i in x direction
-def weight_x(I, pixel, partial):
-    term = partial * gamma_i(I, pixel)
+def weight_x(I, gamma, partial):
+    term = partial * gamma
     return abs(term) ** eta
 
 # Smoothing weight on pixel i in y direction
-def weight_y(I, pixel, partial):
-    term = partial * gamma_i(I, pixel)
+def weight_y(I, gamma, partial):
+    term = partial * gamma
     return abs(term) ** eta
 
 # Similarity map

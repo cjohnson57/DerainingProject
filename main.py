@@ -21,7 +21,7 @@ K = 25 # Tuned parameter in range [4, 50]
 
 # Read in image, compute gradients, gradient angle, attempt to extract rainy patches from gradient angle
 
-I = cv2.imread('TestTree.png')
+I = cv2.imread('TestUmbrella.png')
 
 I_gray = cv2.cvtColor(I, cv2.COLOR_BGR2GRAY)
 
@@ -52,9 +52,9 @@ gradient_angles = f.grad_angle(gx, gy) # Currently the result is in range 0 to p
 # canny = cv2.Canny(I, 0, 100)
 canny_gray = cv2.Canny(I_gray, 0, 80)
 # cv2.imshow('Image Edges', canny)
-cv2.imshow('Gray Image Edges', canny_gray)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+# cv2.imshow('Gray Image Edges', canny_gray)
+# cv2.waitKey(0)
+# cv2.destroyAllWindows()
 
 # Construct array of windows which each have some value delta
 
@@ -189,11 +189,9 @@ for i in range(0, 20*N):
     #cv2.rectangle(I_windows, topleft_patch, bottomright_patch, (0, 0, 255), 2)
 
 # Show image with windows, lines, and patches drawn over it
-cv2.imshow('Rainy Windows and Patches', I_windows)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
-
-exit(0)
+# cv2.imshow('Rainy Windows and Patches', I_windows)
+# cv2.waitKey(0)
+# cv2.destroyAllWindows()
 
 # Initialize vars for use in minimization code
 B = I.copy()
@@ -202,13 +200,26 @@ f.global_rain_direction = global_rain_direction
 f.rainy_patches = rainy_patches
 f.patchwidth = patchwidth
 
+# Include to see visual result for phi
+# phi = f.regularize_phi(B)
+# cv2.imshow('Phi output', phi)
+# cv2.waitKey(0)
+# cv2.destroyAllWindows()
+
+# Include to see visual result for omega
+# omega = f.regularize_omega(B, I)
+# cv2.imshow('Omega output', omega)
+# cv2.waitKey(0)
+# cv2.destroyAllWindows()
+
+exit(0)
 
 ## Goal is to minimize this term
-term0 = f.frobenius_norm(I - B - R) ** 2
-term1 = lambda_1 * f.regularize_psi(B) # Need to add code for calculation of sparse code in each patch
-term2 = lambda_2 * f.regularize_phi(B)
-term3 = lambda_3 * f.regularize_omega(R, I)
-term = term0 + term1 + term2 + term3
+# term0 = f.frobenius_norm(I - B - R) ** 2
+# term1 = lambda_1 * f.regularize_psi(B) # Need to add code for calculation of sparse code in each patch
+# term2 = lambda_2 * f.regularize_phi(B)
+# term3 = lambda_3 * f.regularize_omega(R, I)
+# term = term0 + term1 + term2 + term3
 
 beta = .1 # ?
 alpha = f.alpha(B)
