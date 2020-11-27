@@ -22,28 +22,30 @@ def normalize(v):
 def img_normalize(img):
     min_val = np.min(img.ravel())
     max_val = np.max(img.ravel())
+    if max_val == 0 and min_val == 0: # Image is only 0s, just return that
+        return img
     output = (img.astype('float')-min_val)/(max_val - min_val)
     return output
 
 # Gets x and y derivative images
 def partial_both_grayscale(img):
-    n_row = img.shape[0]
-    n_col = img.shape[1]
-    gx = np.zeros((n_row-2, n_col-2), float)
-    gy = np.zeros((n_row-2, n_col-2), float)
-    for i in range(1, n_row-2):
-        for j in range(1, n_col-2):
+    rows = img.shape[0]
+    cols = img.shape[1]
+    gx = np.zeros((rows-2, cols-2), float)
+    gy = np.zeros((rows-2, cols-2), float)
+    for i in range(1, rows-2):
+        for j in range(1, cols-2):
             gx[i-1, j-1] = (img[i, j+1]-img[i, j-1])
             gy[i-1, j-1] = (img[i+1, j]-img[i-1, j])
     return gx, gy
 
 # Calculates the gradient angle at each pixel given both derivatives
 def grad_angle(gx, gy):
-    n_row = gx.shape[0]
-    n_col = gx.shape[1]
-    angles = np.zeros((n_row, n_col), float)
-    for i in range(1, n_row):
-        for j in range(1, n_col):
+    rows = gx.shape[0]
+    cols = gx.shape[1]
+    angles = np.zeros((rows, cols), float)
+    for i in range(1, rows):
+        for j in range(1, cols):
             y = gy[i-1, j-1]
             x = gx[i-1, j-1]
             angles[i-1, j-1] = math.atan2(y, x)
@@ -74,8 +76,8 @@ def pixel_gradient(I, x, y):
     vector = []
     partx = (I[x, y + 1] - I[x, y - 1]) / 2.0
     party = (I[x + 1, y] - I[x - 1, y]) / 2.0
-    vector.append((partx[0] + partx[1] + partx[2]) / 3)
-    vector.append((party[0] + party[1] + party[2]) / 3)
+    vector.append(partx / 3)
+    vector.append(party / 3)
     return [vector[0], vector[1]]
 
 # Represents the global rain direction as a vector and returns
@@ -101,55 +103,17 @@ def patch_difference(I, patch1, patch2):
 ### All of the following functions are attempts to recreate the functions defined in the paper
 
 ##########################################################################
-############################### psi ######################################
+############################ psi/alpha ###################################
 
 # psi = sparsity prior
 # This effectively removes rain streaks, but background details as well
-gamma = 5  # some weight
-M = 20
-
+# Since we could not get psi fully working we just use our own basic smoothing method
 def regularize_psi(B):
-    alphavector = normalize(alpha(B))
-    rows = B.shape[0]
-    cols = B.shape[1]
-    # loop through each pixel and add to sum
-    output = np.zeros((rows-1, cols-1), float)
-    for i in range(rows - 1):
-        for j in range(cols - 1):
-            pixel = B[i, j]
-            output[i][j] = normalize(alphavector[pixel] - mu_i(B, pixel))
-    return alphavector + gamma * sum
+    return alpha(B)
 
-# return vector of all alpha_i
+# Go to each patch in the picture and average values to smooth picture
 def alpha(B):
-    rows = B.shape[0]
-    cols = B.shape[1]
-    output = np.zeros((rows-1, cols-1), float)
-    for i in range(rows - 1):
-        for j in range(cols - 1):
-            pixel = B[i, j]
-            output = alpha_i(B, pixel)
-    return output
-
-## TODO: All of these
-
-# alpha_i = sparse code of patch centered at pixel i
-def alpha_i(B, pixel):
-    return 0
-
-# alpha_i_m = sparse code of mth similar patch
-def alpha_i_m(B, pixel, m):
-    return 0
-
-# mu_i = weighted average of the sparse codes of the M nonlocal patches that are
-# the most similar to the patch centered at pixel i
-def mu_i(B, pixel):
-    return 0
-
-# tau_i_m = distance between a_i_m and patch centered at pixel i
-def tau_i_m(B, pixel, m):
-    return 0
-
+    return cv2.medianBlur(B, 3)
 
 ##########################################################################
 ############################### phi ######################################
@@ -163,9 +127,9 @@ def regularize_phi(B):
     rows = B.shape[0]
     cols = B.shape[1]
     # loop through each pixel and assign value to pixel in output
-    output = np.zeros((rows-1, cols-1), float)
-    for i in range(rows - 1):
-        for j in range(cols - 1):
+    output = np.zeros((rows, cols), float)
+    for i in range(rows-1):
+        for j in range(cols-1):
             term = theta_i(B, i, j) + epsilon_1
             output[i][j] = (1 / term)
     return output
@@ -190,30 +154,29 @@ def regularize_omega(R, I):
     rows = R.shape[0]
     cols = R.shape[1]
     # Calculate derivative of R
-    R_gray = cv2.cvtColor(R, cv2.COLOR_BGR2GRAY)
-    R_gray_norm = img_normalize(R_gray)
-    dx, dy = partial_both_grayscale(R_gray_norm)
+    R_norm = img_normalize(R)
+    dx, dy = partial_both_grayscale(R_norm)
     # loop through each pixel and add to sum
-    output = np.zeros((rows-1, cols-1), float)
-    for i in range(rows - 2):
-        for j in range(cols - 2):
+    output = np.zeros((rows, cols), float)
+    for i in range(rows-2):
+        for j in range(cols-2):
             pixel = (i, j)
             dx_pixel = dx[pixel]
             dy_pixel = dy[pixel]
-            gamma = gamma_i(I, pixel)
-            term1 = weight_x(I, gamma, dx_pixel) * (dx_pixel ** 2)
-            term2 = weight_y(I, gamma, dy_pixel) * (dy_pixel ** 2)
+            biggamma = gamma_i(I, pixel)
+            term1 = weight_x(I, biggamma, dx_pixel) * (dx_pixel ** 2)
+            term2 = weight_y(I, biggamma, dy_pixel) * (dy_pixel ** 2)
             output[i][j] = (term1 + term2)
     return output
 
 # Smoothing weight on pixel i in x direction
-def weight_x(I, gamma, partial):
-    term = partial * gamma
+def weight_x(I, biggamma, partial):
+    term = partial * biggamma
     return abs(term) ** eta
 
 # Smoothing weight on pixel i in y direction
-def weight_y(I, gamma, partial):
-    term = partial * gamma
+def weight_y(I, biggamma, partial):
+    term = partial * biggamma
     return abs(term) ** eta
 
 # Similarity map

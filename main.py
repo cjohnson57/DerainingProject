@@ -8,7 +8,7 @@ import random
 # Declaring parameter values, most of them are constant
 
 lambda_1 = 1.0
-lambda_2 = 0.0005 # Tuned parameter in range [0.0001, 0.001]
+lambda_2 = 0.001
 lambda_3 = 0.01
 
 W_r = 31 # Window size
@@ -194,11 +194,20 @@ for i in range(0, 20*N):
 # cv2.destroyAllWindows()
 
 # Initialize vars for use in minimization code
-B = I.copy()
-R = I - B
+B = I_gray_norm.copy()
+B = B.astype('float32') # Must convert everything to float32 for opencv functions to work
+R = I_gray_norm - B
 f.global_rain_direction = global_rain_direction
 f.rainy_patches = rainy_patches
 f.patchwidth = patchwidth
+alpha = f.img_normalize(f.alpha(B))
+beta = .01
+H = B.copy() # Lagrange multiplier of linear constraint. Should equal (B - D * alpha) but D will initially equal 0 so initial just = B
+
+# Include to see visual result for psi
+# cv2.imshow('Psi/alpha output', alpha)
+# cv2.waitKey(0)
+# cv2.destroyAllWindows()
 
 # Include to see visual result for phi
 # phi = f.regularize_phi(B)
@@ -212,8 +221,6 @@ f.patchwidth = patchwidth
 # cv2.waitKey(0)
 # cv2.destroyAllWindows()
 
-exit(0)
-
 ## Goal is to minimize this term
 # term0 = f.frobenius_norm(I - B - R) ** 2
 # term1 = lambda_1 * f.regularize_psi(B) # Need to add code for calculation of sparse code in each patch
@@ -221,20 +228,37 @@ exit(0)
 # term3 = lambda_3 * f.regularize_omega(R, I)
 # term = term0 + term1 + term2 + term3
 
-beta = .1 # ?
-alpha = f.alpha(B)
-H = B  # Supposed to be lagrange multiplier of linear constraint
-
-for t in range(0, 100):
+# Iterative code for optimization
+for t in range(0, 10):
     # Update B step 1: update B_t+1
-    firstpart = f.frobenius_norm(I - B - R)
+    firstpart = f.img_normalize(I_gray_norm - B - R)
     secondpart = lambda_2 * f.regularize_phi(B)
-    D = f.regularize_omega(R, I)
-    thirdpart = f.frobenius_norm(B - D * alpha - (1 / beta) * H)
-    B = firstpart + secondpart + (beta / 2) * thirdpart
+    D = lambda_3 * f.regularize_omega(R, I_gray_norm)
+    tonormalize_1 = B - D * alpha - (1 / beta) * H
+    thirdpart = f.img_normalize(tonormalize_1)
+    B = B + firstpart + secondpart + (beta / 2) * thirdpart
+    B = f.img_normalize(B)
+    B = B.astype('float32')
     # Update B step 2: update alpha_t+1
-    alpha = f.frobenius_norm(B - D * alpha - (1 / beta) * H) + lambda_1 * f.regularize_psi(B)
+    tonormalize_2 = B - D * alpha - (1 / beta) * H
+    alpha = f.img_normalize(tonormalize_2) + lambda_1 * f.regularize_psi(B)
+    alpha = f.img_normalize(alpha)
+    alpha = alpha.astype('float32')
     # Update B step 3: Update H_t+1
     H = H + beta * (B - D * alpha)
+    H = f.img_normalize(H)
+    H = H.astype('float32')
     # Update R
-    R = I - B
+    R = I_gray_norm - B
+    R = f.img_normalize(R)
+    R = R.astype('float32')
+
+# Show Original
+cv2.imshow('Original', I_gray_norm)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
+
+# Show Result
+cv2.imshow('Result', R)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
