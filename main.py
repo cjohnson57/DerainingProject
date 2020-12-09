@@ -19,20 +19,44 @@ patchwidth = 7 # Width of rainy patches
 T = 2
 K = 25 # Tuned parameter in range [4, 50]
 
-# Read in image, compute gradients, gradient angle, attempt to extract rainy patches from gradient angle
+f = functions
 
+## Comparing results
+# # Take the sum of the absolute value of the difference between each pixel of our result
+# # Avg of these values will roughly tell us how different our results are
+# ours = cv2.imread('UmbrellaResult.png')
+# ours = cv2.cvtColor(ours, cv2.COLOR_BGR2GRAY)
+# ours = f.img_normalize(ours)
+# theirs = cv2.imread('AuthorResult.png')
+# theirs = cv2.cvtColor(theirs, cv2.COLOR_BGR2GRAY)
+# theirs = f.img_normalize(theirs)
+# rows = ours.shape[0]
+# cols = ours.shape[1]
+# sum = 0
+# for i in range(1, rows):
+#     for j in range(1, cols):
+#         ourvalue = ours[i-1, j-1]
+#         theirvalue = theirs[i-1, j-1]
+#         difference = theirvalue - ourvalue
+#         sum += np.abs(difference)
+# # Take average of these values by dividing the number of pixels
+# avgdiff = sum / (rows * cols)
+# print(avgdiff)
+# exit(0)
+
+# Read in image, compute gradients, gradient angle, attempt to extract rainy patches from gradient angle
 I = cv2.imread('TestUmbrella.png')
 
 I_gray = cv2.cvtColor(I, cv2.COLOR_BGR2GRAY)
 
+I_gray_norm = f.img_normalize(I_gray)
+
 # cv2.imshow('Original image', I)
 # cv2.imshow('Gray image', I_gray)
+# cv2.imshow('Gray normalized image', I_gray_norm)
 # cv2.waitKey(0)
 # cv2.destroyAllWindows()
 
-f = functions
-
-I_gray_norm = f.img_normalize(I_gray)
 gx, gy = f.partial_both_grayscale(I_gray)
 
 # cv2.imshow('x derivative', gx)
@@ -251,7 +275,6 @@ cv2.destroyAllWindows()
 cv2.imshow('Result', B)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
-cv2.imwrite("UmbrellaResult.png", B)
 
 # Show rain layer of result
 cv2.imshow('Result rain layer', R)
