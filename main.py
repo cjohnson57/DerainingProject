@@ -230,38 +230,16 @@ H = B.copy() # Lagrange multiplier of linear constraint. Should equal (B - D * a
 
 # Iterative code for optimization
 for t in range(0, 10):
-    # Update B step 1: update B_t+1
-    firstpart = f.img_normalize(I_gray_norm - B - R)
-    secondpart = lambda_2 * f.img_normalize(f.regularize_phi(B))
-    D = lambda_3 * f.img_normalize(f.regularize_omega(R, I_gray_norm))
-    tonormalize_1 = B - D * alpha - (1 / beta) * H
-    thirdpart = f.img_normalize(tonormalize_1)
-    B = B + firstpart + secondpart + (beta / 2) * thirdpart
+    # Combine the three priors to produce a less rainy result over several iterations
+    term1 = lambda_1 * f.img_normalize(f.regularize_psi(B))
+    term2 = lambda_2 * f.img_normalize(f.regularize_phi(B))
+    term3 = lambda_3 * f.img_normalize(f.regularize_omega(R, I_gray_norm))
+    B = term1 + term2 - term3
     B = f.img_normalize(B)
     B = B.astype('float32')
-    # Update B step 2: update alpha_t+1
-    tonormalize_2 = B - D * alpha - (1 / beta) * H
-    alpha = f.img_normalize(tonormalize_2) + lambda_1 * f.img_normalize(f.regularize_psi(B))
-    alpha = f.img_normalize(alpha)
-    alpha = alpha.astype('float32')
-    # Update B step 3: Update H_t+1
-    H = H + beta * (B - D * alpha)
-    H = f.img_normalize(H)
-    H = H.astype('float32')
-    # Update R
     R = I_gray_norm - B
     R = f.img_normalize(R)
     R = R.astype('float32')
-
-    # term1 = lambda_1 * f.img_normalize(f.regularize_psi(B))
-    # term2 = lambda_2 * f.img_normalize(f.regularize_phi(B))
-    # term3 = lambda_3 * f.img_normalize(f.regularize_omega(R, I_gray_norm))
-    # B = term1 + term2 + term3
-    # B = f.img_normalize(B)
-    # B = B.astype('float32')
-    # R = I_gray_norm - B
-    # R = f.img_normalize(R)
-    # R = R.astype('float32')
 
 
 # Show Original
@@ -270,11 +248,12 @@ cv2.waitKey(0)
 cv2.destroyAllWindows()
 
 # Show Result
-cv2.imshow('B Result', B)
+cv2.imshow('Result', B)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
+cv2.imwrite("UmbrellaResult.png", B)
 
-# Show Result
-cv2.imshow('R Result', R)
+# Show rain layer of result
+cv2.imshow('Result rain layer', R)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
