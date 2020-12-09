@@ -5,11 +5,11 @@ import functions
 import math
 import random
 
-# Declaring parameter values, most of them are constant
+# Declaring constant parameter values
 
 lambda_1 = 1.0
-lambda_2 = 0.001
-lambda_3 = 0.01
+lambda_2 = 0.1
+lambda_3 = 0.1
 
 W_r = 31 # Window size
 W_s = 8 # Window step size
@@ -40,9 +40,9 @@ gx, gy = f.partial_both_grayscale(I_gray)
 # cv2.waitKey(0)
 # cv2.destroyAllWindows()
 
-gradient_angles = f.grad_angle(gx, gy) # Currently the result is in range 0 to pi/2. Paper states should be in range 0 to pi
+gradient_angles = f.grad_angle(gx, gy)
 
-#print(gradient_angles.max())
+# print(gradient_angles.max())
 
 # cv2.imshow('Gradient Angles', gradient_angles)
 # cv2.waitKey(0)
@@ -118,7 +118,7 @@ for window in rainywindows:
     # cv2.destroyAllWindows()
     # Now use hough transform to identify lines (rain streaks) and try to find longest one
     lines = cv2.HoughLines(cropped, 1, np.pi / 180, 20)
-    if not (lines is None): # Once window identification works, this should never be false
+    if not (lines is None): # This should never be false
         lengths = list()
         for line in lines:
             # Do some calculations to find two points (start and end) of the line and calculate its length
@@ -232,8 +232,8 @@ H = B.copy() # Lagrange multiplier of linear constraint. Should equal (B - D * a
 for t in range(0, 10):
     # Update B step 1: update B_t+1
     firstpart = f.img_normalize(I_gray_norm - B - R)
-    secondpart = lambda_2 * f.regularize_phi(B)
-    D = lambda_3 * f.regularize_omega(R, I_gray_norm)
+    secondpart = lambda_2 * f.img_normalize(f.regularize_phi(B))
+    D = lambda_3 * f.img_normalize(f.regularize_omega(R, I_gray_norm))
     tonormalize_1 = B - D * alpha - (1 / beta) * H
     thirdpart = f.img_normalize(tonormalize_1)
     B = B + firstpart + secondpart + (beta / 2) * thirdpart
@@ -241,7 +241,7 @@ for t in range(0, 10):
     B = B.astype('float32')
     # Update B step 2: update alpha_t+1
     tonormalize_2 = B - D * alpha - (1 / beta) * H
-    alpha = f.img_normalize(tonormalize_2) + lambda_1 * f.regularize_psi(B)
+    alpha = f.img_normalize(tonormalize_2) + lambda_1 * f.img_normalize(f.regularize_psi(B))
     alpha = f.img_normalize(alpha)
     alpha = alpha.astype('float32')
     # Update B step 3: Update H_t+1
@@ -253,12 +253,28 @@ for t in range(0, 10):
     R = f.img_normalize(R)
     R = R.astype('float32')
 
+    # term1 = lambda_1 * f.img_normalize(f.regularize_psi(B))
+    # term2 = lambda_2 * f.img_normalize(f.regularize_phi(B))
+    # term3 = lambda_3 * f.img_normalize(f.regularize_omega(R, I_gray_norm))
+    # B = term1 + term2 + term3
+    # B = f.img_normalize(B)
+    # B = B.astype('float32')
+    # R = I_gray_norm - B
+    # R = f.img_normalize(R)
+    # R = R.astype('float32')
+
+
 # Show Original
 cv2.imshow('Original', I_gray_norm)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
 
 # Show Result
-cv2.imshow('Result', R)
+cv2.imshow('B Result', B)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
+
+# Show Result
+cv2.imshow('R Result', R)
 cv2.waitKey(0)
 cv2.destroyAllWindows()

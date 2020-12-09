@@ -92,11 +92,11 @@ def get_patch(pixel):
 
 # Based on starting pixels of two patches, slices the image and returns the difference of the two
 def patch_difference(I, patch1, patch2):
-    patch1_img = I[patch1[1]:patch1[1] + patchwidth, patch1[0]:patch1[0] + patchwidth]
+    patch1_img = I[patch1[0]:patch1[0] + patchwidth, patch1[1]:patch1[1] + patchwidth]
     # Account for when patch reached edge of image and must be truncated
     adjustedwidth = patch1_img.shape[0]
     adjustedheight = patch1_img.shape[1]
-    patch2_img = I[patch2[1]:patch2[1] + adjustedwidth, patch2[0]:patch2[0] + adjustedheight]
+    patch2_img = I[patch2[0]:patch2[0] + adjustedwidth, patch2[1]:patch2[1] + adjustedheight]
     return patch1_img - patch2_img
 
 
