@@ -22,12 +22,12 @@ K = 25 # Tuned parameter in range [4, 50]
 f = functions
 
 ## Comparing results
-# # Take the sum of the absolute value of the difference between each pixel of our result
-# # Avg of these values will roughly tell us how different our results are
-# ours = cv2.imread('UmbrellaResult.png')
+# Take the sum of the absolute value of the difference between each pixel of our result
+# Avg of these values will roughly tell us how different our results are
+# ours = cv2.imread('Test Images/UmbrellaResult.png')
 # ours = cv2.cvtColor(ours, cv2.COLOR_BGR2GRAY)
 # ours = f.img_normalize(ours)
-# theirs = cv2.imread('AuthorResult.png')
+# theirs = cv2.imread('Test Images/AuthorResult.png')
 # theirs = cv2.cvtColor(theirs, cv2.COLOR_BGR2GRAY)
 # theirs = f.img_normalize(theirs)
 # rows = ours.shape[0]
@@ -45,7 +45,7 @@ f = functions
 # exit(0)
 
 # Read in image, compute gradients, gradient angle, attempt to extract rainy patches from gradient angle
-I = cv2.imread('TestUmbrella.png')
+I = cv2.imread('Test Images/TestUmbrella.png')
 
 I_gray = cv2.cvtColor(I, cv2.COLOR_BGR2GRAY)
 
@@ -103,7 +103,7 @@ while True:
     # Now use hough transform to identify lines (rain streaks) and try to find longest one
     lines = cv2.HoughLines(cropped, 1, np.pi / 180, 20)
     delta = 1000000.0
-    if not(lines is None) and lines.shape[0] > 8: # Want at least 7 lines to consider this window
+    if not(lines is None) and lines.shape[0] > 8: # Want at least 9 lines to consider this window
         angles = list()
         for line in lines:
             angles.append(line[0][1])
